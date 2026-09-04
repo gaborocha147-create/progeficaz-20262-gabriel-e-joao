@@ -1,5 +1,6 @@
 from flask import Flask, render_template_string, request, redirect
 import json
+import utils
 
 server = Flask(__name__)
 
@@ -12,4 +13,3 @@ def pagina_imoveis():
         <p>Servidor rodando...</p>
         <p>Acesse /imoveis para acessar a API.</p>
     ''')
-
