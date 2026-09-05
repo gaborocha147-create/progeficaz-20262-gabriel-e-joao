@@ -108,3 +108,97 @@ def adicionar_imovel():
         return jsonify({"mensagem": "Imóvel adicionado com sucesso"}), 201
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
+
+@server.route('/imoveis/<int:imovel_id>', methods=['DELETE'])
+def deletar_imovel(imovel_id):
+    """DELETE /imoveis/<id> - Deleta um imóvel específico pelo ID."""
+    try:
+        conn = conectar_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM imoveis WHERE id = %s", (imovel_id,))
+        conn.commit()
+        
+        if cursor.rowcount == 0:
+            return jsonify({"erro": "Imóvel não encontrado"}), 404
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({"mensagem": "Imóvel deletado com sucesso"}), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+@server.route('/imoveis/<int:imovel_id>', methods=['PUT'])
+def atualizar_imovel(imovel_id):
+    """PUT /imoveis/<id> - Atualiza um imóvel específico pelo ID."""
+    try:
+        dados = request.get_json()
+        
+        conn = conectar_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE imoveis
+            SET logradouro = %s, tipo_logradouro = %s, bairro = %s, cidade = %s, cep = %s, tipo = %s, valor = %s, data_aquisicao = %s
+            WHERE id = %s
+        """, (
+            dados['logradouro'],
+            dados['tipo_logradouro'],
+            dados['bairro'],
+            dados['cidade'],
+            dados['cep'],
+            dados['tipo'],
+            dados['valor'],
+            dados['data_aquisicao'],
+            imovel_id
+        ))
+        
+        conn.commit()
+        
+        if cursor.rowcount == 0:
+            return jsonify({"erro": "Imóvel não encontrado"}), 404
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({"mensagem": "Imóvel atualizado com sucesso"}), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+@server.route('/imoveis/search', methods=['GET'])
+def buscar_imoveis():
+    """GET /imoveis/search - Busca imóveis com base em parâmetros de consulta."""
+    try:
+        params = request.args
+        query = "SELECT * FROM imoveis WHERE 1=1"
+        values = []
+
+        if 'cidade' in params:
+            query += " AND cidade = %s"
+            values.append(params['cidade'])
+        if 'bairro' in params:
+            query += " AND bairro = %s"
+            values.append(params['bairro'])
+        if 'tipo' in params:
+            query += " AND tipo = %s"
+            values.append(params['tipo'])
+
+        conn = conectar_db()
+        cursor = conn.cursor()
+        
+        cursor.execute(query, tuple(values))
+        resultados = cursor.fetchall()
+        
+        imoveis = [converter_para_dict(row) for row in resultados]
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify(imoveis), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+if __name__ == '__main__':
+    server.run(debug=True)
+    
