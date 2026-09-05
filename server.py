@@ -53,3 +53,58 @@ def get_imoveis():
         return jsonify(imoveis), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
+
+
+@server.route('/imoveis/<int:imovel_id>', methods=['GET'])
+def get_imovel(imovel_id):
+    """GET /imoveis/<id> - Retorna um imóvel específico pelo ID."""
+    try:
+        conn = conectar_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM imoveis WHERE id = %s", (imovel_id,))
+        resultado = cursor.fetchone()
+        
+        if resultado is None:
+            return jsonify({"erro": "Imóvel não encontrado"}), 404
+        
+        imovel = converter_para_dict(resultado)
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify(imovel), 200
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+@server.route('/imoveis', methods=['POST'])
+def adicionar_imovel():
+    """POST /imoveis - Adiciona um novo imóvel."""
+    try:
+        dados = request.get_json()
+        
+        conn = conectar_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO imoveis (logradouro, tipo_logradouro, bairro, cidade, cep, tipo, valor, data_aquisicao)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            dados['logradouro'],
+            dados['tipo_logradouro'],
+            dados['bairro'],
+            dados['cidade'],
+            dados['cep'],
+            dados['tipo'],
+            dados['valor'],
+            dados['data_aquisicao']
+        ))
+        
+        conn.commit()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify({"mensagem": "Imóvel adicionado com sucesso"}), 201
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
