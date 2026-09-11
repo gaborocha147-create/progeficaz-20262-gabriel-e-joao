@@ -43,16 +43,19 @@ MOCK_IMOVEIS = [
 @pytest.fixture
 def client():
     """Cria um cliente de teste para a API."""  
-    server.config["TESTING"] = True  
-    with server.test_client() as client:
+    server.server.config["TESTING"] = True 
+    server.server.json.sort_keys = False
+    with server.server.test_client() as client:
         yield client
 
-def test_get_imoveis(client):
+@patch("server.conectar_db")
+def test_get_imoveis(mock_conectar_db, client):
     # GET /imoveis - retorna uma lista de todos os imóveis
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     
     mock_conn.cursor.return_value = mock_cursor
+    mock_conectar_db.return_value = mock_conn
     
     mock_cursor.fetchall.return_value = [
         (1, "Nicole Common", "Travessa", "Lake Danielle", "Judymouth", "85184", "casa em condominio", 488423.52, "2017-07-29"),
@@ -64,32 +67,36 @@ def test_get_imoveis(client):
 
     assert response.status_code == 200
     
-    expected_response = json.dumps(MOCK_IMOVEIS)
+    expected_response = json.dumps(MOCK_IMOVEIS, separators=(',', ':')) + "\n"
     
     assert response.data.decode("utf-8") == expected_response
     
-def test_get_imovel(client):
+@patch("server.conectar_db")
+def test_get_imovel(mock_conectar_db, client):
     # GET /imoveis/<id> - retorna um imóvel da lista
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
         
     mock_conn.cursor.return_value = mock_cursor
-    mock_cursor.fetchone.return_value = MOCK_IMOVEIS[0]
+    mock_conectar_db.return_value = mock_conn
+    mock_cursor.fetchone.return_value = (1, "Nicole Common", "Travessa", "Lake Danielle", "Judymouth", "85184", "casa em condominio", 488423.52, "2017-07-29")
     
     response = client.get("/imoveis/1")
     
     assert response.status_code == 200
         
-    expected_response = json.dumps(MOCK_IMOVEIS[0])
+    expected_response = json.dumps(MOCK_IMOVEIS[0], separators=(',', ':')) + "\n"
         
     assert response.data.decode("utf-8") == expected_response
-    
-def test_get_imovel_inexistente(client):
+
+@patch("server.conectar_db")   
+def test_get_imovel_inexistente(mock_conectar_db, client):
     # GET /imoveis/<id> - dá erro se o imóvel não existe
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
         
     mock_conn.cursor.return_value = mock_cursor
+    mock_conectar_db.return_value = mock_conn
     mock_cursor.fetchone.return_value = None
     
     response = client.get("/imoveis/8723743873")
@@ -97,42 +104,50 @@ def test_get_imovel_inexistente(client):
     assert response.status_code == 404
         
     assert response.data.decode("utf-8") == "Imóvel não encontrado"
-    
-def test_get_imoveis_filtrado(client):
+
+@patch("server.conectar_db")
+def test_get_imoveis_filtrado(mock_conectar_db, client):
     # GET /imoveis?cidade=<cidade> - retorna imóveis filtrados pela cidade
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     
     mock_conn.cursor.return_value = mock_cursor
+    mock_conectar_db.return_value = mock_conn
     
-    mock_cursor.fetchall.return_value = [MOCK_IMOVEIS[2]]
+    mock_cursor.fetchall.return_value = [(3, "Taylor Ranch", "Avenida", "West Jennashire", "Katherinefurt", "51116", "apartamento", 815969.92, "2020-04-24")]
     
     response = client.get("/imoveis?cidade=Katherinefurt")
 
     assert response.status_code == 200
     
-    expected_response = json.dumps(MOCK_IMOVEIS[2])
+    expected_response = json.dumps([MOCK_IMOVEIS[2]], separators=(',', ':')) + "\n"
     
     assert response.data.decode("utf-8") == expected_response
-    
-def test_get_imoveis_filtrado_tipo(client):
+
+@patch("server.conectar_db")
+def test_get_imoveis_filtrado_tipo(mock_conectar_db, client):
     # GET /imoveis?tipo=<tipo> - retorna imóveis filtrados pelo tipo
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     
     mock_conn.cursor.return_value = mock_cursor
+    mock_conectar_db.return_value = mock_conn
     
-    mock_cursor.fetchall.return_value = [MOCK_IMOVEIS[0], MOCK_IMOVEIS[1]]
+    mock_cursor.fetchall.return_value = [
+                                            (1, "Nicole Common", "Travessa", "Lake Danielle", "Judymouth", "85184", "casa em condominio", 488423.52, "2017-07-29"), 
+                                            (2, "Price Prairie", "Travessa", "Colonton", "North Garyville", "93354", "casa em condominio", 260069.89, "2021-11-30")
+                                        ]
     
     response = client.get("/imoveis?tipo=casa em condominio")
 
     assert response.status_code == 200
     
-    expected_response = json.dumps(MOCK_IMOVEIS[0], MOCK_IMOVEIS[1])
+    expected_response = json.dumps([MOCK_IMOVEIS[0], MOCK_IMOVEIS[1]], separators=(',', ':')) + "\n"
     
     assert response.data.decode("utf-8") == expected_response
-    
-def test_post_imovel(client):
+
+@patch("server.conectar_db")
+def test_post_imovel(mock_conectar_db, client):
     # POST /imoveis - adiciona um novo imóvel
     novo_imovel = {
         "logradouro": "New Street",
@@ -149,16 +164,18 @@ def test_post_imovel(client):
     mock_cursor = MagicMock()
     
     mock_conn.cursor.return_value = mock_cursor
+    mock_conectar_db.return_value = mock_conn
     mock_cursor.lastrowid = 4
     
-    response = client.post("/imoveis", json=json.dumps(novo_imovel), content_type='application/json')
+    response = client.post("/imoveis", json=novo_imovel)
 
     assert response.status_code == 201
     response_data = json.loads(response.data.decode("utf-8"))
     assert response_data["id"] == 4
     assert response_data["mensagem"] == "Imóvel adicionado com sucesso"
-    
-def test_post_imovel_dados_incompletos(client):
+
+@patch("server.conectar_db")
+def test_post_imovel_dados_incompletos(mock_conectar_db, client):
     # POST /imoveis - retorna erro se os dados estão incompletos
     novo_imovel = {
         "logradouro": "New Street",
@@ -168,12 +185,13 @@ def test_post_imovel_dados_incompletos(client):
         "cep": "12345",
     }
     
-    response = client.post("/imoveis", json=json.dumps(novo_imovel), content_type='application/json')
+    response = client.post("/imoveis", json=novo_imovel)
 
     assert response.status_code == 400
     assert response.data.decode("utf-8") == "Dados insuficientes para adicionar o imóvel"
-    
-def test_post_imovel_dados_invalidos(client):
+
+@patch("server.conectar_db")
+def test_post_imovel_dados_invalidos(mock_conectar_db, client):
     # POST /imoveis - retorna erro se parte dos dados são inválidos
     novo_imovel = {
         "logradouro": "New Street",
@@ -186,17 +204,19 @@ def test_post_imovel_dados_invalidos(client):
         "data_aquisicao": "2022-01-01"
     }
     
-    response = client.post("/imoveis", json=json.dumps(novo_imovel), content_type='application/json')
+    response = client.post("/imoveis", json=novo_imovel)
 
     assert response.status_code == 400
     assert response.data.decode("utf-8") == "Dados inválidos para adicionar o imóvel"
-    
-def test_put_imovel(client):
+
+@patch("server.conectar_db")
+def test_put_imovel(mock_conectar_db, client):
     # PUT /imoveis/<id> - atualiza os detalhes de um imóvel existente
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     
     mock_conn.cursor.return_value = mock_cursor
+    mock_conectar_db.return_value = mock_conn
     mock_cursor.rowcount = 1
 
     imovel_atualizado = {
@@ -208,14 +228,16 @@ def test_put_imovel(client):
 
     assert response.status_code == 200
     response_data = json.loads(response.data.decode("utf-8"))
-    assert response_data["message"] == "Imóvel atualizado com sucesso"
-    
-def test_put_imovel_nao_encontrado(client):
+    assert response_data["mensagem"] == "Imóvel atualizado com sucesso"
+
+@patch("server.conectar_db")
+def test_put_imovel_nao_encontrado(mock_conectar_db, client):
     # PUT /imoveis/<id> - retorna erro se o imóvel a ser atualizado não for encontrado
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     
     mock_conn.cursor.return_value = mock_cursor
+    mock_conectar_db.return_value = mock_conn
     mock_cursor.rowcount = 0
 
     imovel_atualizado = {
@@ -227,27 +249,31 @@ def test_put_imovel_nao_encontrado(client):
 
     assert response.status_code == 404
     assert response.data.decode("utf-8") == "Imóvel não encontrado"
-    
-def test_delete_imovel(client):
+
+@patch("server.conectar_db")
+def test_delete_imovel(mock_conectar_db, client):
     # DELETE /imoveis/<id> - remove um imóvel existente
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     
     mock_conn.cursor.return_value = mock_cursor
+    mock_conectar_db.return_value = mock_conn
     mock_cursor.rowcount = 1
 
     response = client.delete("/imoveis/1")
 
     assert response.status_code == 200
     response_data = json.loads(response.data.decode("utf-8"))
-    assert response_data["message"] == "Imóvel removido com sucesso"
-    
-def test_delete_imovel_nao_encontrado(client):
+    assert response_data["mensagem"] == "Imóvel removido com sucesso"
+
+@patch("server.conectar_db")
+def test_delete_imovel_nao_encontrado(mock_conectar_db, client):
     # DELETE /imoveis/<id> - retorna erro se o imóvel removido não foi encontrado
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     
     mock_conn.cursor.return_value = mock_cursor
+    mock_conectar_db.return_value = mock_conn
     mock_cursor.rowcount = 0
 
     response = client.delete("/imoveis/3235536")

@@ -81,7 +81,7 @@ def get_imovel(imovel_id):
         resultado = cursor.fetchone()
         
         if resultado is None:
-            return jsonify({"erro": "Imóvel não encontrado"}), 404
+            return "Imóvel não encontrado", 404
         
         imovel = converter_para_dict(resultado)
         
@@ -97,6 +97,12 @@ def adicionar_imovel():
     """POST /imoveis - Adiciona um novo imóvel."""
     try:
         dados = request.get_json()
+        
+        campos_obrigatorios = ['logradouro', 'tipo_logradouro', 'bairro', 'cidade', 'cep', 'tipo', 'valor', 'data_aquisicao']
+        if any(campo not in dados for campo in campos_obrigatorios):
+            return "Dados insuficientes para adicionar o imóvel", 400
+        if not isinstance(dados['valor'], (int, float)):
+            return "Dados inválidos para adicionar o imóvel", 400
         
         conn = conectar_db()
         cursor = conn.cursor()
@@ -116,11 +122,12 @@ def adicionar_imovel():
         ))
         
         conn.commit()
+        novo_id = cursor.lastrowid
         
         cursor.close()
         conn.close()
         
-        return jsonify({"mensagem": "Imóvel adicionado com sucesso"}), 201
+        return jsonify({"id": novo_id, "mensagem": "Imóvel adicionado com sucesso"}), 201
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
@@ -135,12 +142,12 @@ def deletar_imovel(imovel_id):
         conn.commit()
         
         if cursor.rowcount == 0:
-            return jsonify({"erro": "Imóvel não encontrado"}), 404
+            return "Imóvel não encontrado", 404
         
         cursor.close()
         conn.close()
         
-        return jsonify({"mensagem": "Imóvel deletado com sucesso"}), 200
+        return jsonify({"mensagem": "Imóvel removido com sucesso"}), 200
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
@@ -149,30 +156,22 @@ def atualizar_imovel(imovel_id):
     """PUT /imoveis/<id> - Atualiza um imóvel específico pelo ID."""
     try:
         dados = request.get_json()
-        
+
+        campos_possiveis = ['logradouro', 'tipo_logradouro', 'bairro', 'cidade', 'cep', 'tipo', 'valor', 'data_aquisicao']
+        campos_enviados = [campo for campo in campos_possiveis if campo in dados]
+
+        set_clause = ", ".join(f"{campo} = %s" for campo in campos_enviados)
+        valores = [dados[campo] for campo in campos_enviados] + [imovel_id]
+
         conn = conectar_db()
         cursor = conn.cursor()
-        
-        cursor.execute("""
-            UPDATE imoveis
-            SET logradouro = %s, tipo_logradouro = %s, bairro = %s, cidade = %s, cep = %s, tipo = %s, valor = %s, data_aquisicao = %s
-            WHERE id = %s
-        """, (
-            dados['logradouro'],
-            dados['tipo_logradouro'],
-            dados['bairro'],
-            dados['cidade'],
-            dados['cep'],
-            dados['tipo'],
-            dados['valor'],
-            dados['data_aquisicao'],
-            imovel_id
-        ))
-        
+
+        cursor.execute(f"UPDATE imoveis SET {set_clause} WHERE id = %s", tuple(valores))
+
         conn.commit()
         
         if cursor.rowcount == 0:
-            return jsonify({"erro": "Imóvel não encontrado"}), 404
+            return "Imóvel não encontrado", 404
         
         cursor.close()
         conn.close()
